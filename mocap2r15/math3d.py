@@ -8,10 +8,11 @@ Conventions used everywhere in this package:
 - Quaternions are ``(w, x, y, z)``. Multiplication applies the right-hand
   factor first: ``R(quat_mul(a, b)) = R(a) @ R(b)``.
 - Positive rotations are right-handed.
-- BVH Euler channels are **intrinsic** and applied in the order they are
-  listed. Channel order ``ZYX`` (Z, then Y, then X) is the matrix
-  ``Rx @ Ry @ Rz``. That matches Blender's Euler order string for the same
-  channel sequence.
+- BVH Euler channels follow Blender's BVH importer. The importer builds
+  ``Euler((x, y, z), channel_order[::-1])``, so a file that lists
+  ``Zrotation Yrotation Xrotation`` is the matrix ``Rz @ Ry @ Rx``.
+  The last channel hits the bone first. Putting the first channel on the
+  inside instead leaves a CMU walk's arms stuck behind the torso.
 
 Roblox is Y-up and characters face **-Z**. A 180 degree yaw takes a BVH
 skeleton that faces **+Z** onto that frame.
@@ -271,10 +272,14 @@ def quat_slerp(a: Sequence[float], b: Sequence[float], t: float) -> Quat:
 
 
 def euler_to_quat(order: str, degrees: Sequence[float]) -> Quat:
-    """Intrinsic Euler rotation.
+    """BVH Euler rotation, matching Blender's importer.
 
-    ``order`` is the channel sequence, first letter applied first.
+    ``order`` is the channel sequence as written in the file.
     ``degrees`` lines up with ``order`` (not with XYZ storage).
+
+    Blender does ``Euler((x, y, z), channel_order[::-1])``. For ``ZYX`` that
+    is Euler order ``XYZ``: ``Rz @ Ry @ Rx``. The last listed channel is
+    applied to the bone first, and the first listed channel is outermost.
     """
     if len(order) != len(degrees):
         raise ValueError(f"Euler order {order!r} does not match {len(degrees)} angles")
@@ -284,8 +289,8 @@ def euler_to_quat(order: str, degrees: Sequence[float]) -> Quat:
         if key not in _AXES:
             raise ValueError(f"Unknown Euler axis {axis_name!r}")
         step = quat_from_axis_angle(_AXES[key], math.radians(deg))
-        # Newer rotation goes on the left so the first channel stays on the right.
-        q = quat_mul(step, q)
+        # Newer channel goes on the right, so it is applied to the vector first.
+        q = quat_mul(q, step)
     return q
 
 

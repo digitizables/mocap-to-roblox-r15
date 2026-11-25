@@ -33,7 +33,7 @@ def _clip():
 
 
 def _rotations(bvh, **degrees):
-    """``degrees`` maps a joint to ``(z, y, x)`` in degrees, Z applied first."""
+    """``degrees`` maps a joint to ``(z, y, x)`` in file channel order."""
     rotations = {name: QUAT_IDENTITY for name in bvh.order}
     for name, angles in degrees.items():
         rotations[name] = euler_to_quat("ZYX", angles)
@@ -74,9 +74,11 @@ class RetargetDirectionTests(unittest.TestCase):
         self.assertLess(abs(direction[2]), 0.15)
 
     def test_forward_arm_swing_faces_roblox_negative_z(self):
-        # Arms already down, then Rx(-20) swings the hand toward BVH +Z.
+        # Z=-90 hangs the T-pose arm. Y=-20 then swings it toward BVH +Z,
+        # which is Roblox -Z. An X swing does not: on this skeleton X is the
+        # bone axis, so it only twists the arm.
         bvh, mapping, conv, corrections = _clip()
-        local = retarget_pose(_rotations(bvh, LeftArm=(-90.0, 0.0, -20.0)), mapping, conv, corrections)
+        local = retarget_pose(_rotations(bvh, LeftArm=(-90.0, -20.0, 0.0)), mapping, conv, corrections)
         direction = _bone(local, "LeftUpperArm")
         self.assertLess(direction[1], -0.8)
         self.assertLess(direction[2], -0.25)

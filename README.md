@@ -320,10 +320,11 @@ From the repo root:
 python -m unittest discover -s tests -v
 ```
 
-The suite covers Euler channel order (matched against Blender's ZYX
-convention), BVH parsing, preset selection, spine aiming, arm and knee
-direction after the facing yaw, rest-frame subtraction, scale, in-place
-versus root motion, resampling, foot IK bone lengths, the `.rbxmx` hierarchy,
+The suite covers Euler channel order (matched against Blender's BVH
+importer, which reverses the channel-order string), BVH parsing, preset
+selection, spine aiming, arm and knee direction after the facing yaw,
+rest-frame subtraction, scale, in-place versus root motion, resampling,
+foot IK bone lengths, the `.rbxmx` hierarchy,
 CLI exit codes, and the checked-in examples.
 
 ## Limitations

@@ -32,13 +32,14 @@ class EulerOrderTests(unittest.TestCase):
         m = euler_matrix("ZXY", (90.0, 0.0, 0.0))
         self.assertTrue(almost_vec(mat_vec(m, VEC_X), (0.0, 1.0, 0.0), 1e-6))
 
-    def test_zyx_matches_blender_euler(self):
-        # Blender Euler((90°, 0, 90°), 'ZYX') sends +X to +Z.
-        # Channel order Z then Y then X with angles (z=90, y=0, x=90).
+    def test_zyx_matches_blender_bvh_importer(self):
+        # Importer: Euler((x, y, z), 'ZYX'[::-1]) = Euler((90°, 0, 90°), 'XYZ')
+        # = Rz(90) @ Rx(90). +X goes to +Y. The reversed composition
+        # Rx @ Rz sent +X to +Z and is what stuck CMU arms behind the body.
         m = euler_matrix("ZYX", (90.0, 0.0, 90.0))
-        self.assertTrue(almost_vec(mat_vec(m, VEC_X), (0.0, 0.0, 1.0), 1e-6))
-        self.assertTrue(almost_vec(mat_vec(m, VEC_Y), (-1.0, 0.0, 0.0), 1e-6))
-        self.assertTrue(almost_vec(mat_vec(m, VEC_Z), (0.0, -1.0, 0.0), 1e-6))
+        self.assertTrue(almost_vec(mat_vec(m, VEC_X), (0.0, 1.0, 0.0), 1e-6))
+        self.assertTrue(almost_vec(mat_vec(m, VEC_Y), (0.0, 0.0, 1.0), 1e-6))
+        self.assertTrue(almost_vec(mat_vec(m, VEC_Z), (1.0, 0.0, 0.0), 1e-6))
 
     def test_intrinsic_x_bends_down_leg_backward(self):
         # Positive Rx on a bone that points down (-Y) tilts it toward -Z.

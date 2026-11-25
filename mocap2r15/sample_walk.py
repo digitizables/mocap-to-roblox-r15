@@ -103,8 +103,9 @@ def frame_channels(index: int) -> Dict[str, Sequence[float]]:
     phase = 2.0 * math.pi * (index / CYCLES)
     swing = math.sin(phase)
     bob = math.sin(2.0 * phase)
-    # Positive X on a hanging arm swings it toward BVH -Z (back).
-    # Negative X on a down thigh swings it toward BVH +Z (forward).
+    # Thighs point down, so the X channel swings them: negative X is +Z.
+    # Arms point along X, so the Y channel swings them. Positive Y sends
+    # the left arm toward -Z and the right arm toward +Z.
     return {
         "Hips": (40.0, 1.02 + 0.025 * bob, TRAVEL * (index / CYCLES), 3.0 * swing, 6.0 * swing, 2.0 * bob),
         "LowerBack": (1.5 * swing, 0.0, 1.0 * bob),
@@ -115,8 +116,8 @@ def frame_channels(index: int) -> Dict[str, Sequence[float]]:
         "RightUpLeg": (0.0, 0.0, 28.0 * swing),
         "RightLeg": (0.0, 0.0, 22.0 + 18.0 * max(0.0, swing)),
         "RightFoot": (0.0, 0.0, -8.0 * swing),
-        "LeftArm": (-90.0, 0.0, 20.0 * swing),
-        "RightArm": (90.0, 0.0, -20.0 * swing),
+        "LeftArm": (-90.0, 20.0 * swing, 0.0),
+        "RightArm": (90.0, 20.0 * swing, 0.0),
     }
 
 
