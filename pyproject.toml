@@ -1,0 +1,22 @@
+[project]
+name = "mocap2r15"
+version = "1.0.0"
+description = "Retarget public motion-capture locomotion (BVH) onto Roblox R15 KeyframeSequences"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [{ name = "Paul Beck" }]
+keywords = ["roblox", "r15", "bvh", "motion-capture", "animation", "retarget"]
+
+[project.scripts]
+mocap2r15 = "mocap2r15.cli:main"
+
+[project.optional-dependencies]
+dev = []
+
+[tool.setuptools.packages.find]
+include = ["mocap2r15*"]
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
