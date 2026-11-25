@@ -90,6 +90,34 @@ class PipelineTests(unittest.TestCase):
         delta = math.degrees(quat_between_angle(QUAT_IDENTITY, rested.frames[1].local["LeftLowerLeg"]))
         self.assertAlmostEqual(delta, 20.0, delta=1.5)
 
+    def test_upright_torso_and_same_frame_mirror(self):
+        rows = []
+        for _ in range(5):
+            rows.append(
+                {
+                    "LowerBack": (20.0, 0.0, 8.0),
+                    "LeftArm": (-90.0, 35.0, 0.0),
+                    "RightArm": (90.0, -5.0, 0.0),
+                }
+            )
+        bvh = _walk(rows)
+        plain = convert_bvh(bvh, ConvertOptions())
+        fixed = convert_bvh(bvh, ConvertOptions(upright_torso=True, mirror_left=True, mirror_phase=0.0))
+        self.assertGreater(math.degrees(quat_between_angle(QUAT_IDENTITY, plain.frames[0].local["UpperTorso"])), 2.0)
+        plain_left = _bone(plain.frames[0], "LeftUpperArm")
+        plain_right = _bone(plain.frames[0], "RightUpperArm")
+        self.assertGreater(abs(plain_right[0] + plain_left[0]) + abs(plain_right[2] - plain_left[2]), 0.05)
+        for frame in fixed.frames:
+            up = quat_rotate(frame.local["LowerTorso"], (0.0, 1.0, 0.0))
+            self.assertAlmostEqual(up[0], 0.0, places=4)
+            self.assertAlmostEqual(up[1], 1.0, places=4)
+            self.assertLess(math.degrees(quat_between_angle(QUAT_IDENTITY, frame.local["UpperTorso"])), 0.05)
+            left = _bone(frame, "LeftUpperArm")
+            right = _bone(frame, "RightUpperArm")
+            self.assertAlmostEqual(right[0], -left[0], places=4)
+            self.assertAlmostEqual(right[1], left[1], places=4)
+            self.assertAlmostEqual(right[2], left[2], places=4)
+
     def test_yaw_moves_onto_the_humanoid_root(self):
         bvh = _walk([{"Hips": (0.0, 0.0, 0.0, 0.0, 90.0, 0.0)}])
         result = convert_bvh(bvh, ConvertOptions(yaw_on_root=True))

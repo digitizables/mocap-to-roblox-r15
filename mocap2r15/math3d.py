@@ -239,6 +239,31 @@ def quat_dot(a: Sequence[float], b: Sequence[float]) -> float:
     return a[0] * b[0] + a[1] * b[1] + a[2] * b[2] + a[3] * b[3]
 
 
+def quat_mirror_x(q: Sequence[float]) -> Quat:
+    """Reflect a rotation across the YZ plane.
+
+    ``R' = M R M`` with ``M = diag(-1, 1, 1)`` is the quaternion
+    ``(w, x, -y, -z)``. A bone direction ``(x, y, z)`` becomes ``(-x, y, z)``:
+    forward swing stays forward and abduction flips to the other side.
+    """
+    w, x, y, z = quat_normalize(q)
+    return (w, x, -y, -z)
+
+
+def quat_strip_twist(q: Sequence[float], forward: Vec3 = (0.0, 0.0, -1.0)) -> Quat:
+    """Yaw then pitch that aims ``forward`` where ``q`` does, with the twist removed.
+
+    Yaw is about +Y and pitch is about +X, composed ``q_yaw * q_pitch``.
+    A nod and a turn stay. Roll around the look direction is dropped.
+    Pitch stays inside ±90°, which is the range a head uses.
+    """
+    faced = quat_rotate(q, forward)
+    horizontal = math.hypot(faced[0], faced[2])
+    yaw = math.atan2(-faced[0], -faced[2])
+    pitch = math.atan2(faced[1], horizontal)
+    return quat_mul(quat_from_axis_angle(VEC_Y, yaw), quat_from_axis_angle(VEC_X, pitch))
+
+
 def quat_slerp(a: Sequence[float], b: Sequence[float], t: float) -> Quat:
     """Shortest-path slerp. ``t`` is not clamped, so callers can extrapolate."""
     a_n = quat_normalize(a)

@@ -105,6 +105,22 @@ def _add_convert_flags(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--root-motion", action="store_true", help="Keep the traveled path. The default is an in-place cycle")
     parser.add_argument("--root-bone", default="humanoid", choices=("humanoid", "lower-torso"), help="Which pose carries root translation")
     parser.add_argument("--yaw-on-root", action="store_true", help="Put hip yaw on HumanoidRootPart and leave pitch/roll on LowerTorso")
+    parser.add_argument(
+        "--upright-torso",
+        action="store_true",
+        help="Remove sideways lean and chest pitch. LowerTorso keeps its yaw, the head keeps its nod and turn, and the limbs keep their swing.",
+    )
+    parser.add_argument(
+        "--mirror-left",
+        action="store_true",
+        help="Copy the left limbs onto the right, reflected across X, half a cycle later so a walk stays out of phase.",
+    )
+    parser.add_argument(
+        "--mirror-phase",
+        type=float,
+        default=0.5,
+        help="Fraction of the clip to delay the copied side (default 0.5). 0 copies the same frame and steps both feet together.",
+    )
     parser.add_argument("--fps", type=float, default=None, help="Resample to this frame rate. The default keeps the source rate")
     parser.add_argument("--reduce-degrees", type=float, default=0.0, help="Drop keys a slerp can rebuild within this many degrees (0 keeps every frame)")
     parser.add_argument("--reduce-position", type=float, default=0.05, help="Root-position error allowed while thinning, in studs")
@@ -136,6 +152,9 @@ def _options_from(args: argparse.Namespace, name: Optional[str]) -> ConvertOptio
         in_place=not args.root_motion,
         root_bone=args.root_bone,
         yaw_on_root=args.yaw_on_root,
+        upright_torso=args.upright_torso,
+        mirror_left=args.mirror_left,
+        mirror_phase=args.mirror_phase,
         fps=args.fps,
         reduce_degrees=args.reduce_degrees,
         reduce_position=args.reduce_position,
@@ -215,6 +234,9 @@ def _cmd_sample(args: argparse.Namespace) -> int:
             root_motion=False,
             root_bone="humanoid",
             yaw_on_root=False,
+            upright_torso=False,
+            mirror_left=False,
+            mirror_phase=0.5,
             fps=None,
             reduce_degrees=0.0,
             reduce_position=0.05,

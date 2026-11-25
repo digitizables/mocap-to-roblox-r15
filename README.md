@@ -99,6 +99,9 @@ are gitignored.
 | `--root-motion` | off | Keep the traveled path. Omit it for an in-place cycle. |
 | `--root-bone` | `humanoid` | `humanoid` or `lower-torso` |
 | `--yaw-on-root` | off | Hip yaw goes on `HumanoidRootPart`. Pitch and roll stay on `LowerTorso`. |
+| `--upright-torso` | off | Drop sideways lean and chest pitch. Yaw stays, the head keeps its nod and turn, and the limbs keep their swing. |
+| `--mirror-left` | off | Copy the left limbs onto the right, reflected across X. |
+| `--mirror-phase` | `0.5` | Fraction of the clip to delay that copy. `0.5` keeps a walk out of phase. `0` steps both feet together. |
 | `--fps` | source | Resample. A 1 second clip at 30 fps stays 31 samples, including both ends. |
 | `--reduce-degrees` | `0` | Drop keys a slerp can rebuild within this angle. `0` keeps every frame. |
 | `--reduce-position` | `0.05` | Root-position error allowed while thinning, in studs |
@@ -235,7 +238,8 @@ look natural on an R15.
 ## Cleanup
 
 Operations run in this order: trim, foot plant, resample, retarget, rest
-subtraction, yaw split, loop blend, drop a duplicated last key, then thin.
+subtraction, yaw split, upright torso, loop blend, left-to-right copy,
+drop a duplicated last key, then thin.
 
 **Foot plant** (`--foot-lock`) is off by default. It looks for runs where
 the ankle is near the bottom of its height range and is not sliding fast,
@@ -244,6 +248,18 @@ shin with a two-bone IK. Bone lengths stay exact. A correction larger than
 about a third of the leg is clamped. The foot keeps its world orientation.
 This is a cleanup, not a new solve. Use it when a foot skates. Leave it off
 when the source contact is already clean.
+
+**Upright torso** (`--upright-torso`) is off by default. It keeps the hip
+yaw, sets the chest to identity, and removes roll from the head. Upper arms
+and thighs are rewritten so they still point the way they did. A recorded
+lean, a hunch, and a wave that depends on a tilted chest are all removed.
+
+**Mirror left** (`--mirror-left`) is off by default. Each right limb becomes
+the left limb reflected across X. The default delay is half a cycle, so the
+right foot is back when the left foot is forward. `--mirror-phase 0` copies
+the same frame instead, and both feet step together. The copy runs while the
+end key is still in the clip, so the delay is one full cycle and not one
+frame short.
 
 **Loop blend** eases rotation, and the vertical bob, back to the first pose.
 With `--root-motion` the XZ path is not rewound. `--loop` also drops a final
@@ -292,13 +308,17 @@ mirror, use the same joint names. Convert a one-stride excerpt the way
 `examples/cmu_07_01_walk.rbxmx` was made:
 
 ```powershell
-python -m mocap2r15 07_01.bvh -o cmu_07_01_walk.rbxmx --fps 30 --start 0.5 --end 1.6 --loop --loop-blend 4 --name "CMU 07_01 walk"
+python -m mocap2r15 07_01.bvh -o cmu_07_01_walk.rbxmx --fps 30 --start 0.5 --end 1.6 --loop --loop-blend 4 --upright-torso --mirror-left --name "CMU 07_01 walk"
 ```
 
 That window is one left-foot cycle (0.5 s to 1.6 s). Auto scale fits the
 24.6-unit skeleton to 5 studs. The clip in `examples/` is in-place: root XZ
-stays 0, the hip bobs by about 0.2 studs, the arms hang, and the knees bend
-backward. Add `--root-motion` to keep the path (about 5.4 studs of travel
+stays 0, the hip bobs by about 0.2 studs, the torso stays upright, and the
+right limbs are the left limbs mirrored half a cycle later. On this trial
+the chest leans to the character's right and the right arm stays out while
+the left arm hangs and swings, so those two flags are what make the example
+a straight walk. Leave them off to keep the recorded lean and the original
+right side. Add `--root-motion` to keep the path (about 5.4 studs of travel
 along Roblox -Z over that stride). The source BVH is not in this repo.
 
 If you redistribute a clip derived from CMU data, keep their acknowledgement:
@@ -324,7 +344,7 @@ The suite covers Euler channel order (matched against Blender's BVH
 importer, which reverses the channel-order string), BVH parsing, preset
 selection, spine aiming, arm and knee direction after the facing yaw,
 rest-frame subtraction, scale, in-place versus root motion, resampling,
-foot IK bone lengths, the `.rbxmx` hierarchy,
+foot IK bone lengths, upright torso, the half-cycle limb copy, the `.rbxmx` hierarchy,
 CLI exit codes, and the checked-in examples.
 
 ## Limitations
@@ -336,6 +356,7 @@ CLI exit codes, and the checked-in examples.
 - Fingers and toes are dropped. Toe and finger offsets only aim the foot and the hand.
 - Foot plant is a heuristic. It will not repair a clip whose feet never pass near the ground, and it clamps large corrections instead of stretching the leg.
 - `--rest-frame` on a T-pose bakes the arms out. Use it on a standing frame.
+- `--upright-torso` and `--mirror-left` replace recorded motion. A limp, a lean, and a one-sided gesture will not survive them. They are off unless you pass the flags.
 - `auto` can pick the wrong family when two presets share most names. SOMA's `LeftLeg` is a thigh and CMU's `LeftLeg` is a shin. Pass `--preset soma` or `--preset cmu` when you know the source.
 - Auto height-fit assumes the bind pose is a full body. A file that is only a pair of legs will be stretched to 5 studs. Use `--unit` or `--studs-per-unit` then.
 - Translation on `HumanoidRootPart` is correct for the Animation Editor and is what some Humanoid playback ignores. `--root-bone lower-torso` is the switch.

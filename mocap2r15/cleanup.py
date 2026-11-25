@@ -13,15 +13,31 @@ from typing import Dict, List, Sequence
 
 from mocap2r15.clip import SourceFrame
 from mocap2r15.math3d import (
+    QUAT_IDENTITY,
     Quat,
-    Vec3,
     quat_between_angle,
+    quat_inv,
+    quat_mirror_x,
+    quat_mul,
     quat_slerp,
+    quat_strip_twist,
     smoothstep,
     v_dist,
     v_lerp,
+    yaw_about_y,
 )
 from mocap2r15.retarget import R15Frame
+
+# Left limb, then the right limb that should copy it. Both sides of a default
+# R15 have the same Motor6D axis directions, so one X-mirror fits every pair.
+LIMB_MIRROR = (
+    ("LeftUpperArm", "RightUpperArm"),
+    ("LeftLowerArm", "RightLowerArm"),
+    ("LeftHand", "RightHand"),
+    ("LeftUpperLeg", "RightUpperLeg"),
+    ("LeftLowerLeg", "RightLowerLeg"),
+    ("LeftFoot", "RightFoot"),
+)
 
 
 def trim_frames(frames: Sequence[SourceFrame], start: float | None, end: float | None) -> List[SourceFrame]:
@@ -67,6 +83,95 @@ def resample_frames(frames: Sequence[SourceFrame], fps: float) -> List[SourceFra
             rotations[name] = quat_slerp(a.rotations[name], b.rotations.get(name, a.rotations[name]), u)
         output.append(SourceFrame(time - frames[0].time, rotations, v_lerp(a.root_pos, b.root_pos, u)))
     return output
+
+
+def upright_torso(frames: Sequence[R15Frame]) -> None:
+    """Stand the torso up without throwing away the limb swing.
+
+    ``LowerTorso`` keeps the yaw about +Y, so the character still faces the
+    same way, and loses pitch and roll. ``UpperTorso`` becomes identity.
+    The head keeps the direction it was looking and loses roll around that
+    look. Upper arms and upper legs are re-expressed on the upright chest
+    and pelvis so their world directions stay put. Forearms, hands, shins,
+    and feet hang off those and do not need their own fix.
+    """
+    for frame in frames:
+        local = frame.local
+        hrp = local.get("HumanoidRootPart", QUAT_IDENTITY)
+        lower = local["LowerTorso"]
+        upper = local["UpperTorso"]
+        world_lower = quat_mul(hrp, lower)
+        world_upper = quat_mul(world_lower, upper)
+        world_head = quat_mul(world_upper, local["Head"])
+        yaw, _rest = yaw_about_y(world_lower)
+        local["LowerTorso"] = quat_mul(quat_inv(hrp), yaw)
+        local["UpperTorso"] = QUAT_IDENTITY
+        local["Head"] = quat_mul(quat_inv(yaw), quat_strip_twist(world_head))
+        for part in ("LeftUpperArm", "RightUpperArm"):
+            world_arm = quat_mul(world_upper, local[part])
+            local[part] = quat_mul(quat_inv(yaw), world_arm)
+        for part in ("LeftUpperLeg", "RightUpperLeg"):
+            world_leg = quat_mul(world_lower, local[part])
+            local[part] = quat_mul(quat_inv(yaw), world_leg)
+
+
+def _sample_local(frames: Sequence[R15Frame], part: str, time: float, period: float) -> Quat:
+    """Slerp ``part`` at ``time``. Times outside one cycle wrap.
+
+    A time that already sits on the final key is kept. Wrapping that key
+    onto the first pose would ignore it whenever the clip is not closed.
+    """
+    if period <= 1e-8 or len(frames) == 1:
+        return frames[0].local[part]
+    start = frames[0].time
+    end = start + period
+    if time < start - 1e-8 or time > end + 1e-8:
+        time = start + (time - start) % period
+    if time >= end - 1e-8 and abs(frames[-1].time - end) <= 1e-5:
+        return frames[-1].local[part]
+    if time >= end - 1e-8:
+        time = start
+    if time > frames[-1].time + 1e-8:
+        span = end - frames[-1].time
+        u = 0.0 if span <= 1e-8 else (time - frames[-1].time) / span
+        return quat_slerp(frames[-1].local[part], frames[0].local[part], u)
+    hi = 1
+    while hi < len(frames) - 1 and frames[hi].time < time - 1e-10:
+        hi += 1
+    lo = hi - 1
+    span = frames[hi].time - frames[lo].time
+    u = 0.0 if span <= 1e-8 else (time - frames[lo].time) / span
+    if u < 0.0:
+        u = 0.0
+    elif u > 1.0:
+        u = 1.0
+    return quat_slerp(frames[lo].local[part], frames[hi].local[part], u)
+
+
+def mirror_left_to_right(frames: Sequence[R15Frame], phase: float = 0.5) -> None:
+    """Copy each left limb onto its right partner, reflected across X.
+
+    ``phase`` is a fraction of the clip. ``0.5`` reads the left limb half a
+    cycle later, so the two sides stay out of phase and a walk still walks.
+    ``0`` copies the same frame, which steps both feet together. Call this
+    before ``drop_matching_end``: the last key's time is then one full cycle.
+    The left side is not modified.
+    """
+    if not frames:
+        return
+    period = frames[-1].time - frames[0].time if len(frames) > 1 else 0.0
+    delay = phase * period
+    copied: List[dict] = []
+    for frame in frames:
+        pose = {}
+        when = frame.time + delay
+        for left, right in LIMB_MIRROR:
+            if left not in frame.local:
+                continue
+            pose[right] = quat_mirror_x(_sample_local(frames, left, when, period))
+        copied.append(pose)
+    for frame, pose in zip(frames, copied):
+        frame.local.update(pose)
 
 
 def loop_blend(frames: List[R15Frame], count: int, blend_translation: bool) -> None:

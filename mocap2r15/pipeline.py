@@ -9,7 +9,9 @@ Order of operations:
    does not lift the Roblox avatar.
 4. Optionally subtract that frame's pose so it becomes the R15 rest.
 5. Optionally move yaw onto the HumanoidRootPart.
-6. Blend the loop seam, drop a duplicated last key, then thin keyframes.
+6. Optionally stand the torso upright, then blend the loop seam.
+7. Optionally copy the left limbs onto the right, half a cycle later.
+8. Drop a duplicated last key, then thin keyframes.
 """
 
 from __future__ import annotations
@@ -18,7 +20,15 @@ from dataclasses import dataclass, field
 from typing import List, Optional
 
 from mocap2r15.bvh import BVH, BVHError, load_bvh
-from mocap2r15.cleanup import drop_matching_end, loop_blend, reduce_frames, resample_frames, trim_frames
+from mocap2r15.cleanup import (
+    drop_matching_end,
+    loop_blend,
+    mirror_left_to_right,
+    reduce_frames,
+    resample_frames,
+    trim_frames,
+    upright_torso,
+)
 from mocap2r15.clip import frames_from_bvh
 from mocap2r15.errors import MocapError
 from mocap2r15.footlock import apply_foot_lock, leg_triples
@@ -50,6 +60,9 @@ class ConvertOptions:
     in_place: bool = True
     root_bone: str = "humanoid"
     yaw_on_root: bool = False
+    upright_torso: bool = False
+    mirror_left: bool = False
+    mirror_phase: float = 0.5
     fps: Optional[float] = None
     reduce_degrees: float = 0.0
     reduce_position: float = 0.05
@@ -178,14 +191,21 @@ def convert_bvh(bvh: BVH, options: Optional[ConvertOptions] = None) -> ConvertRe
             frame.local["HumanoidRootPart"] = yaw
             frame.local["LowerTorso"] = rest
 
-    warnings.extend(pose_angle_warnings(frames))
+    if options.upright_torso:
+        upright_torso(frames)
 
     if options.loop and options.loop_blend > 0:
         loop_blend(frames, options.loop_blend, blend_translation=options.in_place)
+    if options.mirror_left:
+        # The endpoint key is still present, so its time is one full cycle.
+        # Dropping it first would make a half-cycle sample one frame short.
+        mirror_left_to_right(frames, options.mirror_phase)
     if options.loop:
         frames = drop_matching_end(frames)
     if options.reduce_degrees > 0:
         frames = reduce_frames(frames, options.reduce_degrees, options.reduce_position)
+
+    warnings.extend(pose_angle_warnings(frames))
 
     if len(frames) > 1:
         duration = frames[-1].time - frames[0].time
