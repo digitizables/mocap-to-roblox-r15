@@ -82,6 +82,21 @@ class RetargetDirectionTests(unittest.TestCase):
         self.assertLess(direction[2], -0.25)
         self.assertLess(abs(direction[0]), 0.15)
 
+    def test_elbow_flexion_on_a_hanging_arm_bends_backward(self):
+        # Shoulder Rz(-90) hangs the T-pose arm. Forearm Ry(+30) then bends
+        # the hand toward BVH -Z, which is behind the character in Roblox.
+        bvh, mapping, conv, corrections = _clip()
+        local = retarget_pose(
+            _rotations(bvh, LeftArm=(-90.0, 0.0, 0.0), LeftForeArm=(0.0, 30.0, 0.0)),
+            mapping,
+            conv,
+            corrections,
+        )
+        direction = quat_rotate(local["LeftUpperArm"], _bone(local, "LeftLowerArm"))
+        self.assertLess(direction[1], -0.8)
+        self.assertGreater(direction[2], 0.3)
+        self.assertLess(abs(direction[0]), 0.2)
+
     def test_knee_flexion_bends_toward_roblox_back(self):
         # Rx(+30) on a shin that hangs down tilts it toward BVH -Z.
         # After the +Z → -Z yaw, that bend is Roblox +Z (behind the character).
