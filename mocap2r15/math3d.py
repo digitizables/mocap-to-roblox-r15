@@ -348,6 +348,22 @@ def forward_axis_quaternion(axis: str) -> Quat:
     return quat_from_axis_angle(VEC_Y, angles[key])
 
 
+def quat_between(a: Sequence[float], b: Sequence[float]) -> Quat:
+    """Shortest rotation that takes vector ``a`` onto vector ``b``."""
+    a_n = v_normalize(a)
+    b_n = v_normalize(b)
+    d = v_dot(a_n, b_n)
+    if d > 0.999999:
+        return QUAT_IDENTITY
+    if d < -0.999999:
+        axis = v_cross(a_n, VEC_X)
+        if v_len(axis) < 1e-6:
+            axis = v_cross(a_n, VEC_Y)
+        return quat_from_axis_angle(axis, math.pi)
+    axis = v_cross(a_n, b_n)
+    return quat_normalize((1.0 + d, axis[0], axis[1], axis[2]))
+
+
 def conjugate(q: Sequence[float], by: Sequence[float]) -> Quat:
     """``by * q * by^-1``. Changes the basis of a rotation."""
     return quat_mul(by, quat_mul(q, quat_inv(by)))
