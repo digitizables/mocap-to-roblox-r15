@@ -1,4 +1,4 @@
-# mocap-to-roblox-r15
+# mocap2r15
 
 Convert a publicly available motion-capture walk into a Roblox **R15**
 `KeyframeSequence` (`.rbxmx`). The tool is pure Python 3.9+ and uses only
@@ -12,8 +12,8 @@ are not retargeted in process.
 ## Setup
 
 ```powershell
-git clone https://github.com/digitizables/mocap-to-roblox-r15.git
-cd mocap-to-roblox-r15
+git clone https://github.com/digitizables/mocap2r15.git
+cd mocap2r15
 python -m unittest discover -s tests -v
 python -m mocap2r15 --help
 ```
